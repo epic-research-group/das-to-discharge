@@ -59,6 +59,16 @@ for i in list_df:
     val_performance['Multistep_LSTM_fold' + str(k)] = lstm_model.evaluate(multi_step_window.val)
     performance['Multistep_LSTM_fold' + str(k)] = lstm_model.evaluate(multi_step_window.test, verbose=0)
     
+    print('Done with fold: ' + str(k))
+    
     k += 1
+    
+    
 
-print(performance)
+
+file = open('performance_metrics.txt', 'a')
+file.write('performance: ' + str(performance) + '    ')
+file.write('val_performance: ' + str(val_performance))
+file.close()
+
+print('Done! Wrote metrics to performance_metrics.txt')
