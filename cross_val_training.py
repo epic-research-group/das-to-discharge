@@ -71,4 +71,8 @@ file.write('performance: ' + str(performance) + '    ')
 file.write('val_performance: ' + str(val_performance))
 file.close()
 
-print('Done! Wrote metrics to performance_metrics.txt')
+linear.save('saved_models/linear_model')
+dnn_model.save('saved_models/dnn_model')
+lstm_model.save('saved_models/lstm_model')
+
+print('Done! Wrote metrics to performance_metrics.txt and saved models in /saved_models')
