@@ -125,7 +125,7 @@ for i in list_df:
     plt.ylabel('Error')
     plt.legend()
     plt.grid(True)
-    plt.title("Loss Curve DNN, fold: "+str(k))
+    plt.title("Loss Curve LSTM, fold: "+str(k))
     a += 1
     
     print('Done with fold: ' + str(k))
