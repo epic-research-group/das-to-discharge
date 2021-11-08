@@ -1,5 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import h5py
+import pandas as pd
+from tensorflow.keras import layers
 
 class WindowGenerator():
     
@@ -113,3 +116,120 @@ class WindowGenerator():
         labels.set_shape([None, self.label_width, None])
         
         return inputs, labels
+    
+def k_fold(n,names,models,data,input_columns,early_stop=np.nan):    
+    '''
+    Run a k-fold analysis on folds of size n
+    '''
+    
+    list_df = [data[i:i+n] for i in range(0,data.shape[0],n)]
+
+    val_performance={}
+    performance={}
+    history={}
+    history_dict = {}
+
+    #cross validation training
+
+    '''
+    Loop over the folds
+    '''
+    for k,this_data in enumerate(list_df):
+        if not np.isnan(early_stop):
+            if early_stop == k:
+                break
+            
+        n = len(this_data)
+        labels = list(this_data.index)
+
+        data_copy = data.copy()
+
+        train_df = data_copy.drop(labels=labels, axis=0)
+
+        val_df = this_data[int(n*0.0):int(n*0.6)]
+        test_df = this_data[int(n*0.6):int(n*1.0)]
+
+        train_mean = train_df.mean()
+        train_std = train_df.std()
+
+        train_df = (train_df - train_mean) / train_std
+        val_df = (val_df - train_mean) / train_std
+        test_df = (test_df - train_mean) / train_std
+
+        multi_step_window = WindowGenerator(
+            input_width=200, label_width=1, shift=0,
+            train_df=train_df, 
+            val_df=val_df, 
+            test_df=test_df,
+            label_columns=['Discharge'],
+            input_columns=input_columns)
+
+        '''
+        Loop over the model types
+        '''
+        
+        for this_name,this_model in zip(names,models):
+
+            history[name+str(k)] = compile_and_fit(this_model, multi_step_window)
+            val_performance[name +'_fold' + str(k)] = linear.evaluate(multi_step_window.val)
+            performance[name + '_fold' + str(k)] = linear.evaluate(multi_step_window.test, 
+                                                                            verbose=0)
+            history_dict[name + '_fold' + str(k) + '_loss'] = \
+                history[name + '_fold'+str(k)].history['loss']
+
+            history_dict['Multistep_Linear_fold' + str(k) + '_val_loss'] = \
+                history[name + '_fold'+str(k)].history['val_loss']
+
+
+        print('Done with fold: ' + str(k))
+
+    return val_performance, performance, history, history_dict
+
+def compile_and_fit(model, window, patience=2):
+    MAX_EPOCHS = 20
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                    patience=5,
+                                                    mode='min')
+
+    model.compile(loss=tf.losses.MeanSquaredError(),
+                optimizer=tf.optimizers.Adam(learning_rate=0.001),
+                metrics=[tf.metrics.MeanAbsoluteError()])
+
+    history = model.fit(window.train, epochs=MAX_EPOCHS,
+                      validation_data=window.val,
+                      callbacks=[early_stopping])
+    return history
+
+def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
+    
+    f = h5py.File(filename, 'r')
+    print("Keys: %s" % f.keys())
+
+    das_data_all = f['DAS Data'][:]
+    discharge = f['Discharge'][:]
+
+    df_all_chan = pd.DataFrame(das_data_all)
+    df_all_chan['Discharge'] = discharge
+
+    column_indices = {name: i for i, name in enumerate(df_all_chan.columns)}
+
+    input_columns = list(np.arange(0,2308,1))
+
+    linear = tf.keras.Sequential([
+        tf.keras.layers.Dense(1)
+    ])
+
+    lstm_model = tf.keras.models.Sequential([
+        # Shape [batch, time, features] => [batch, time, lstm_units]
+        tf.keras.layers.LSTM(32, return_sequences=True),
+        # Shape => [batch, time, features]
+        tf.keras.layers.Dense(units=1)
+    ])
+
+    dnn_model = tf.keras.models.Sequential([
+          layers.Dense(64, activation='relu'),
+          layers.Dense(64, activation='relu'),
+          layers.Dense(1)
+    ])
+    
+    return linear, lstm_model, dnn_model, df_all_chan, input_columns
