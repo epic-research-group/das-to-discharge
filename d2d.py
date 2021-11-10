@@ -170,15 +170,15 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan):
         
         for this_name,this_model in zip(names,models):
 
-            history[name+str(k)] = compile_and_fit(this_model, multi_step_window)
-            val_performance[name +'_fold' + str(k)] = linear.evaluate(multi_step_window.val)
-            performance[name + '_fold' + str(k)] = linear.evaluate(multi_step_window.test, 
+            history[this_name+str(k)] = compile_and_fit(this_model, multi_step_window)
+            val_performance[this_name +'_fold' + str(k)] = linear.evaluate(multi_step_window.val)
+            performance[this_name + '_fold' + str(k)] = linear.evaluate(multi_step_window.test, 
                                                                             verbose=0)
-            history_dict[name + '_fold' + str(k) + '_loss'] = \
-                history[name + '_fold'+str(k)].history['loss']
+            history_dict[this_name + '_fold' + str(k) + '_loss'] = \
+                history[this_name + '_fold'+str(k)].history['loss']
 
             history_dict['Multistep_Linear_fold' + str(k) + '_val_loss'] = \
-                history[name + '_fold'+str(k)].history['val_loss']
+                history[this_name + '_fold'+str(k)].history['val_loss']
 
 
         print('Done with fold: ' + str(k))
