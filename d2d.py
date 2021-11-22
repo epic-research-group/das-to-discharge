@@ -144,6 +144,14 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
     performance={}
     history={}
     history_dict = {}
+    
+    train_mean = np.zeros( len(list_df) )
+    train_std = np.zeros( len(list_df) )
+    test_mean = np.zeros( len(list_df) )
+    test_std = np.zeros( len(list_df) )
+    val_mean = np.zeros( len(list_df) )
+    val_std = np.zeros( len(list_df) )
+    
 
     #cross validation training
 
@@ -161,16 +169,21 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
         data_copy = data.copy()
 
         train_df = data_copy.drop(labels=labels, axis=0)
-
+        train_mean[k] = train_df.mean()
+        train_std[k] = train_df.std()
+        
         val_df = this_data[int(n*0.0):int(n*0.6)]
+        val_mean[k] = val_df.mean()
+        val_std[k] = val_df.std()
+        
         test_df = this_data[int(n*0.6):int(n*1.0)]
+        test_mean[k] = test_df.mean()
+        test_std[k] = test_df.std()
 
-        train_mean = train_df.mean()
-        train_std = train_df.std()
 
-        train_df = (train_df - train_mean) / train_std
-        val_df = (val_df - train_mean) / train_std
-        test_df = (test_df - train_mean) / train_std
+        train_df = (train_df - train_mean[k]) / train_std[k]
+        val_df = (val_df - train_mean[k]) / train_std[k]
+        test_df = (test_df - train_mean[k]) / train_std[k]
 
         multi_step_window = WindowGenerator(
             input_width=window_input_width, label_width=1, shift=0,
@@ -198,8 +211,15 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
 
 
         print('Done with fold: ' + str(k))
+        
+    k_fold_stats = {'mean_train':train_mean,
+                      'std_train':train_std,
+                      'mean_val':val_mean,
+                      'std_val':val_std,
+                      'mean_test':test_mean,
+                      'std_test':test_std}
 
-    return val_performance, performance, history, history_dict
+    return val_performance, performance, history, history_dict,k_fold_stats
 
 
 
