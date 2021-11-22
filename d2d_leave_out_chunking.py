@@ -160,10 +160,10 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
 
         data_copy = data.copy()
 
-        train_df = data_copy.drop(labels=labels, axis=0)
+        train_df = this_data[int(n*0.0):int(n*0.7)]
 
-        val_df = this_data[int(n*0.0):int(n*0.6)]
-        test_df = this_data[int(n*0.6):int(n*1.0)]
+        val_df = this_data[int(n*0.7):int(n*0.9)]
+        test_df = this_data[int(n*0.9):int(n*1.0)]
 
         train_mean = train_df.mean()
         train_std = train_df.std()
@@ -186,18 +186,18 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
         
         for this_name, this_model in zip(names,models):
 
-            history[this_name + str(k)] = compile_and_fit(this_model, multi_step_window, learning_rate = learning_rate)
-            val_performance[this_name + '_fold' + str(k)] = this_model.evaluate(multi_step_window.val)
-            performance[this_name + '_fold' + str(k)] = this_model.evaluate(multi_step_window.test, 
+            history[this_name + str(k)+str(n)] = compile_and_fit(this_model, multi_step_window, learning_rate = learning_rate)
+            val_performance[this_name + '_fold' + str(k)+'n'+str(n)] = this_model.evaluate(multi_step_window.val)
+            performance[this_name + '_fold' + str(k)+'n'+str(n)] = this_model.evaluate(multi_step_window.test, 
                                                                             verbose=0)
-            history_dict[this_name + '_fold' + str(k) + '_loss'] = \
-                history[this_name + str(k)].history['loss']
+            history_dict[this_name + '_fold' + str(k)+'n'+str(n)] = \
+                history[this_name + str(k)+str(n)].history['loss']
 
             history_dict[this_name + '_fold' + str(k) + '_val_loss'] = \
-                history[this_name + str(k)].history['val_loss']
+                history[this_name + str(k)+str(n)].history['val_loss']
 
 
-        print('Done with fold: ' + str(k))
+        print('Done with fold: ' + str(k)+', chunk size: '+ str(n))
 
     return val_performance, performance, history, history_dict
 
