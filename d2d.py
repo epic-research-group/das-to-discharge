@@ -133,6 +133,100 @@ def compile_and_fit(model, window, patience=3, MAX_EPOCHS = 20, learning_rate = 
 
     return history    
 
+def k_fold_leave_out(n,names,models,data,input_columns,early_stop=np.nan,window_input_width = 200, learning_rate = 0.001):    
+    '''
+    Run a k-fold analysis on folds of size n
+    '''
+    
+    list_df = [data[i:i+n] for i in range(0,data.shape[0],n)]
+
+    val_performance={}
+    performance={}
+    history={}
+    history_dict = {}
+    
+        
+#     train_mean =  np.zeros( len(list_df) )
+#     train_std =  np.zeros( len(list_df) )
+#     test_mean =  np.zeros( len(list_df) )
+#     test_std =  np.zeros( len(list_df) )
+#     val_mean =  np.zeros( len(list_df) )
+#     val_std =  np.zeros( len(list_df) )
+
+    #cross validation training
+
+    '''
+    Loop over the folds
+    '''
+    for k,this_data in enumerate(list_df):
+        if not np.isnan(early_stop):
+            if early_stop == k:
+                break
+            
+        n = len(this_data)
+        labels = list(this_data.index)
+
+        data_copy = data.copy()
+
+        train_df = this_data[int(n*0.0):int(n*0.7)]
+        train_mean = train_df.mean()
+        train_std = train_df.std()
+        
+        val_df = this_data[int(n*0.7):int(n*0.9)]
+        val_mean = val_df.mean()
+        val_std = val_df.std()
+        
+        test_df = this_data[int(n*0.9):int(n*1.0)]
+        test_mean = test_df.mean()
+        test_std = test_df.std()
+        
+        
+        train_df = (train_df - train_mean) / train_std
+        val_df = (val_df - train_mean) / train_std
+        test_df = (test_df - train_mean) / train_std
+
+
+        multi_step_window = WindowGenerator(
+            input_width=window_input_width, label_width=1, shift=0,
+            train_df=train_df, 
+            val_df=val_df, 
+            test_df=test_df,
+            label_columns=['Discharge'],
+            input_columns=input_columns)
+
+        '''
+        Loop over the model types
+        '''
+        
+        for this_name, this_model in zip(names,models):
+
+            history[this_name + str(k)] = compile_and_fit(this_model, multi_step_window, learning_rate = learning_rate)
+            val_performance[this_name + '_fold' + str(k)] = this_model.evaluate(multi_step_window.val)
+            performance[this_name + '_fold' + str(k)] = this_model.evaluate(multi_step_window.test, 
+                                                                            verbose=0)
+            history_dict[this_name + '_fold' + str(k)] = \
+                history[this_name + str(k)].history['loss']
+
+            history_dict[this_name + '_fold' + str(k) + '_val_loss'] = \
+                history[this_name + str(k)].history['val_loss']
+
+
+        
+        
+        
+#         k_fold_stats = {'mean_train':train_mean,
+#                       'std_train':train_std,
+#                       'mean_val':val_mean,
+#                       'std_val':val_std,
+#                       'mean_test':test_mean,
+#                       'std_test':test_std} 
+        
+        print('Done with fold: ' + str(k)+', chunk size: '+ str(n))
+
+    return val_performance, performance, history, history_dict
+
+
+
 def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_width = 200, learning_rate = 0.001):    
     '''
     Run a k-fold analysis on folds of size n
@@ -145,12 +239,12 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
     history={}
     history_dict = {}
     
-    train_mean = np.zeros( len(list_df) )
-    train_std = np.zeros( len(list_df) )
-    test_mean = np.zeros( len(list_df) )
-    test_std = np.zeros( len(list_df) )
-    val_mean = np.zeros( len(list_df) )
-    val_std = np.zeros( len(list_df) )
+#     train_mean = np.zeros( len(list_df) )
+#     train_std = np.zeros( len(list_df) )
+#     test_mean = np.zeros( len(list_df) )
+#     test_std = np.zeros( len(list_df) )
+#     val_mean = np.zeros( len(list_df) )
+#     val_std = np.zeros( len(list_df) )
     
 
     #cross validation training
@@ -169,21 +263,21 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
         data_copy = data.copy()
 
         train_df = data_copy.drop(labels=labels, axis=0)
-        train_mean[k] = train_df.mean()
-        train_std[k] = train_df.std()
+        train_mean = train_df.mean()
+        train_std = train_df.std()
         
         val_df = this_data[int(n*0.0):int(n*0.6)]
-        val_mean[k] = val_df.mean()
-        val_std[k] = val_df.std()
+        val_mean = val_df.mean()
+        val_std = val_df.std()
         
         test_df = this_data[int(n*0.6):int(n*1.0)]
-        test_mean[k] = test_df.mean()
-        test_std[k] = test_df.std()
+        test_mean = test_df.mean()
+        test_std = test_df.std()
 
 
-        train_df = (train_df - train_mean[k]) / train_std[k]
-        val_df = (val_df - train_mean[k]) / train_std[k]
-        test_df = (test_df - train_mean[k]) / train_std[k]
+        train_df = (train_df - train_mean) / train_std
+        val_df = (val_df - train_mean) / train_std
+        test_df = (test_df - train_mean) / train_std
 
         multi_step_window = WindowGenerator(
             input_width=window_input_width, label_width=1, shift=0,
@@ -212,14 +306,14 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
 
         print('Done with fold: ' + str(k))
         
-    k_fold_stats = {'mean_train':train_mean,
-                      'std_train':train_std,
-                      'mean_val':val_mean,
-                      'std_val':val_std,
-                      'mean_test':test_mean,
-                      'std_test':test_std}
+#     k_fold_stats = {'mean_train':train_mean,
+#                       'std_train':train_std,
+#                       'mean_val':val_mean,
+#                       'std_val':val_std,
+#                       'mean_test':test_mean,
+#                       'std_test':test_std}
 
-    return val_performance, performance, history, history_dict,k_fold_stats
+    return val_performance, performance, history, history_dict
 
 
 
