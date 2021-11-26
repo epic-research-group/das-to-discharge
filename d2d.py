@@ -144,7 +144,7 @@ def k_fold_leave_out(n,names,models,data,input_columns,early_stop=np.nan,window_
     performance={}
     history={}
     history_dict = {}
-    
+    running_stats = pd.DataFrame()
         
 #     train_mean =  np.zeros( len(list_df) )
 #     train_std =  np.zeros( len(list_df) )
@@ -180,10 +180,17 @@ def k_fold_leave_out(n,names,models,data,input_columns,early_stop=np.nan,window_
         test_mean = test_df.mean()
         test_std = test_df.std()
         
+        running_stats['Fold'+str(k)+'_train_mean'] = train_mean
+        running_stats['Fold'+str(k)+'_train_std'] = train_std
+        running_stats['Fold'+str(k)+'_val_mean'] = val_mean
+        running_stats['Fold'+str(k)+'_val_std'] = val_std
+        running_stats['Fold'+str(k)+'_test_mean'] = test_mean
+        running_stats['Fold'+str(k)+'_test_std'] = test_std
         
         train_df = (train_df - train_mean) / train_std
         val_df = (val_df - train_mean) / train_std
         test_df = (test_df - train_mean) / train_std
+        
 
 
         multi_step_window = WindowGenerator(
@@ -223,7 +230,7 @@ def k_fold_leave_out(n,names,models,data,input_columns,early_stop=np.nan,window_
         
         print('Done with fold: ' + str(k)+', chunk size: '+ str(n))
 
-    return val_performance, performance, history, history_dict
+    return val_performance, performance, history, history_dict, running_mean
 
 
 
