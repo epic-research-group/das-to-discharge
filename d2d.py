@@ -32,7 +32,8 @@ class WindowGenerator():
 
 
     def __init__(self, df, input_width, label_width, shift,
-                   label_columns=None, input_columns=None):
+                   label_columns=None, input_columns=None,
+                    shuffle=False):
         
         # Store the raw data.
 #         self.train_df = train_df
@@ -72,7 +73,7 @@ class WindowGenerator():
         self.labels_slice = slice(self.label_start, None)
         self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
         
-        ds = self.make_dataset(df)
+        ds = self.make_dataset(df,shuffle=shuffle)
         
         # Split the dataset
         train_split=0.8
@@ -82,7 +83,7 @@ class WindowGenerator():
         ds_size = len(ds)
         train_size = int(train_split * ds_size)
         val_size = int(val_split * ds_size)
-
+        
         train_ds = ds.take(train_size)
         val_ds = ds.skip(train_size).take(val_size)
         test_ds = ds.skip(train_size).skip(val_size)
@@ -99,14 +100,14 @@ class WindowGenerator():
             f'Label indices: {self.label_indices}',
             f'Label column name(s): {self.label_columns}'])
     
-    def make_dataset(self, data):
+    def make_dataset(self, data, shuffle):
         data = np.array(data, dtype=np.float32)
         ds = tf.keras.preprocessing.timeseries_dataset_from_array(
             data=data,
             targets=None,
             sequence_length=self.total_window_size,
             sequence_stride=1,
-            shuffle=False,
+            shuffle=shuffle,
             batch_size=64,) #default is 32
 
         ds = ds.map(self.split_window)
