@@ -6,17 +6,17 @@ from tensorflow.keras import layers
 
 class WindowGenerator():
     
-    @property
-    def train(self):
-      return self.make_dataset(self.train_df)
+#     @property
+#     def train(self):
+#       return self.make_dataset(self.train_df)
 
-    @property
-    def val(self):
-      return self.make_dataset(self.val_df)
+#     @property
+#     def val(self):
+#       return self.make_dataset(self.val_df)
 
-    @property
-    def test(self):
-      return self.make_dataset(self.test_df)
+#     @property
+#     def test(self):
+#       return self.make_dataset(self.test_df)
 
     @property
     def example(self):
@@ -31,17 +31,16 @@ class WindowGenerator():
         return result
 
 
-    def __init__(self, input_width, label_width, shift,
-               train_df, 
-               val_df, 
-               test_df,
-               label_columns=None,
-               input_columns=None):
+    def __init__(self, df, input_width, label_width, shift,
+                   label_columns=None, input_columns=None,
+                    shuffle=False):
         
         # Store the raw data.
-        self.train_df = train_df
-        self.val_df = val_df
-        self.test_df = test_df
+#         self.train_df = train_df
+#         self.val_df = val_df
+#         self.test_df = test_df
+
+
 
         # Work out the label column indices.
         self.label_columns = label_columns
@@ -49,7 +48,7 @@ class WindowGenerator():
             self.label_columns_indices = {name: i for i, name in
                                         enumerate(label_columns)}
         self.column_indices = {name: i for i, name in
-                               enumerate(train_df.columns)}
+                               enumerate(df.columns)}
         
         # Do the same for the input column indices.
         self.input_columns = input_columns
@@ -57,8 +56,9 @@ class WindowGenerator():
             self.input_columns_indices = {name: i for i, name in
                                         enumerate(input_columns)}
         self.input_indices = {name: i for i, name in
-                               enumerate(train_df.columns)}
-
+                               enumerate(df.columns)}
+        
+        
         # Work out the window parameters.
         self.input_width = input_width
         self.label_width = label_width
@@ -72,6 +72,25 @@ class WindowGenerator():
         self.label_start = self.total_window_size - self.label_width
         self.labels_slice = slice(self.label_start, None)
         self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
+        
+        ds = self.make_dataset(df,shuffle=shuffle)
+        
+        # Split the dataset
+        train_split=0.8
+        val_split=0.1
+        test_split=0.1
+        
+        ds_size = len(ds)
+        train_size = int(train_split * ds_size)
+        val_size = int(val_split * ds_size)
+        
+        train_ds = ds.take(train_size)
+        val_ds = ds.skip(train_size).take(val_size)
+        test_ds = ds.skip(train_size).skip(val_size)
+        
+        self.train = train_ds
+        self.val = val_ds
+        self.test = test_ds
 
     def __repr__(self):
         return '\n'.join([
@@ -81,14 +100,14 @@ class WindowGenerator():
             f'Label indices: {self.label_indices}',
             f'Label column name(s): {self.label_columns}'])
     
-    def make_dataset(self, data):
+    def make_dataset(self, data, shuffle):
         data = np.array(data, dtype=np.float32)
         ds = tf.keras.preprocessing.timeseries_dataset_from_array(
             data=data,
             targets=None,
             sequence_length=self.total_window_size,
             sequence_stride=1,
-            shuffle=True,
+            shuffle=shuffle,
             batch_size=64,) #default is 32
 
         ds = ds.map(self.split_window)
@@ -116,6 +135,7 @@ class WindowGenerator():
         labels.set_shape([None, self.label_width, None])
         
         return inputs, labels
+    
 
 def compile_and_fit(model, window, patience=3, MAX_EPOCHS = 20, learning_rate = 0.001):
 
@@ -168,36 +188,19 @@ def k_fold_leave_out(n,names,models,data,input_columns,early_stop=np.nan,window_
 
         data_copy = data.copy()
 
-        train_df = this_data[int(n*0.0):int(n*0.7)]
-        train_mean = train_df.mean()
-        train_std = train_df.std()
-        
-        val_df = this_data[int(n*0.7):int(n*0.9)]
-        val_mean = val_df.mean()
-        val_std = val_df.std()
-        
-        test_df = this_data[int(n*0.9):int(n*1.0)]
-        test_mean = test_df.mean()
-        test_std = test_df.std()
-        
+        train_mean, train_std, test_mean, test_std, val_mean, val_std,\
+                train_df, val_df, test_df = simple_split(this_data)
+
         running_stats['Fold'+str(k)+'_train_mean'] = train_mean
         running_stats['Fold'+str(k)+'_train_std'] = train_std
         running_stats['Fold'+str(k)+'_val_mean'] = val_mean
         running_stats['Fold'+str(k)+'_val_std'] = val_std
         running_stats['Fold'+str(k)+'_test_mean'] = test_mean
         running_stats['Fold'+str(k)+'_test_std'] = test_std
-        
-        train_df = (train_df - train_mean) / train_std
-        val_df = (val_df - train_mean) / train_std
-        test_df = (test_df - train_mean) / train_std
-        
-
 
         multi_step_window = WindowGenerator(
             input_width=window_input_width, label_width=1, shift=0,
-            train_df=train_df, 
-            val_df=val_df, 
-            test_df=test_df,
+            data=this_data, 
             label_columns=['Discharge'],
             input_columns=input_columns)
 
@@ -231,8 +234,6 @@ def k_fold_leave_out(n,names,models,data,input_columns,early_stop=np.nan,window_
         print('Done with fold: ' + str(k)+', chunk size: '+ str(n))
 
     return val_performance, performance, history, history_dict, running_mean
-
-
 
 def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_width = 200, learning_rate = 0.001):    
     '''
