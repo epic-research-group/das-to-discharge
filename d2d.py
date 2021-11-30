@@ -88,6 +88,28 @@ class WindowGenerator():
         val_ds = ds.skip(train_size).take(val_size)
         test_ds = ds.skip(train_size).skip(val_size)
         
+        # Doing the normalization
+        
+        pop_size =1 
+        
+        means_of_batches = []
+        stds_of_batches = []
+        
+        for element in train_ds.as_numpy_iterator():
+            #print(element[0][0].mean(axis=0))
+            means_of_batches.append(element[0][0].mean(axis=0))
+            #print(element[0][0].std(axis=0))
+            stds_of_batches.append(element[0][0].std(axis=0))
+            pop_size += 1
+        
+        print(pop_size)
+        
+        mean_of_means = np.asarray(means_of_batches).mean(axis=0)
+        print(mean_of_means)
+        #print(len(mean_of_means))
+#         for element in means_of_batches:
+#             print(element)
+        
         self.train = train_ds
         self.val = val_ds
         self.test = test_ds
