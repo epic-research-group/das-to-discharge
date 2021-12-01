@@ -76,8 +76,8 @@ class WindowGenerator():
         ds = self.make_dataset(df,shuffle=shuffle)
         
         # Split the dataset
-        train_split=0.8
-        val_split=0.1
+        train_split=0.7
+        val_split=0.2
         test_split=0.1
         
         ds_size = len(ds)
@@ -90,29 +90,97 @@ class WindowGenerator():
         
         # Doing the normalization
         
-        pop_size =1 
-        
-        means_of_batches = []
-        stds_of_batches = []
+        stds_of_window = []
+        sums_chan = []        
+        sums_dis = []
+        stds_of_dis = []
         
         for element in train_ds.as_numpy_iterator():
-            #print(element[0][0].mean(axis=0))
-            means_of_batches.append(element[0][0].mean(axis=0))
-            #print(element[0][0].std(axis=0))
-            stds_of_batches.append(element[0][0].std(axis=0))
-            pop_size += 1
+            
+            sums_chan.append(element[0].sum(axis=1))
+            sums_dis.append(element[1].sum(axis=0))
+         
+            stds_of_window.append(element[0].std(axis=1))
+            stds_of_dis.append(element[1].std(axis=0))
         
-        print(pop_size)
         
-        mean_of_means = np.asarray(means_of_batches).mean(axis=0)
-        print(mean_of_means)
-        #print(len(mean_of_means))
-#         for element in means_of_batches:
-#             print(element)
+        sums_of_chan_sums = []
+        sums_of_dis_sums = []
+        mean_stds_of_batches = []
+        mean_stds_of_dis = []
         
-        self.train = train_ds
-        self.val = val_ds
-        self.test = test_ds
+        for element in sums_dis:
+        
+            sums_of_dis_sums.append(element.sum(axis=0))
+            
+        for element in stds_of_dis:
+            
+            mean_stds_of_dis.append(element.mean(axis=0))
+        
+        for element in stds_of_window:
+            
+            mean_stds_of_batches.append(element.mean(axis=0))
+            
+        for element in sums_chan:
+            
+            sums_of_chan_sums.append(element.sum(axis=0))
+
+        
+        total_chan_sum = np.asarray(sums_of_chan_sums).sum(axis=0)
+        total_dis_sum = np.asarray(sums_of_dis_sums).sum(axis=0)
+        
+        std_chan_mean = np.asarray(mean_stds_of_batches).mean(axis=0)
+        std_dis_mean = np.asarray(mean_stds_of_dis).mean(axis=0)
+        train_chan_mean = total_chan_sum / (self.total_window_size * np.asarray(sums_chan).shape[1] * np.asarray(sums_of_chan_sums).shape[0])
+        train_dis_mean = total_dis_sum / (self.total_window_size*np.asarray(sums_dis).shape[1] * np.asarray(sums_of_dis_sums).shape[0])
+        
+        
+        train_channels_normed = []
+        train_discharge_normed = []
+        
+        for element in train_ds.as_numpy_iterator():
+            norm_chan = (element[0] - train_chan_mean) / std_chan_mean
+            norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+            train_channels_normed.append(norm_chan)
+            train_discharge_normed.append(norm_dis)
+        
+        val_channels_normed = []
+        val_discharge_normed = []        
+        
+        for element in val_ds.as_numpy_iterator():
+            norm_chan = (element[0] - train_chan_mean) / std_chan_mean
+            norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+            val_channels_normed.append(norm_chan)
+            val_discharge_normed.append(norm_dis)        
+
+        test_channels_normed = []
+        test_discharge_normed = []        
+        
+        for element in test_ds.as_numpy_iterator():
+            norm_chan = (element[0] - train_chan_mean) / std_chan_mean
+            norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+            test_channels_normed.append(norm_chan)
+            test_discharge_normed.append(norm_dis)        
+
+            
+#         print(channels_normed)
+#         print(discharge_normed)
+        
+        train_dataset_normed = tf.data.Dataset.from_tensor_slices((train_channels_normed, train_discharge_normed))
+        val_dataset_normed = tf.data.Dataset.from_tensor_slices((val_channels_normed, val_discharge_normed))
+        test_dataset_normed = tf.data.Dataset.from_tensor_slices((test_channels_normed, test_discharge_normed))
+    
+        for element in val_dataset_normed.as_numpy_iterator():
+            print(element)
+            
+#         print(std_chan_mean)
+#         print(train_chan_mean)
+#         print(train_dis_mean)
+#         print(std_dis_mean)
+        
+        self.train = train_dataset_normed
+        self.val = val_dataset_normed
+        self.test = test_dataset_normed
 
     def __repr__(self):
         return '\n'.join([
@@ -122,13 +190,18 @@ class WindowGenerator():
             f'Label indices: {self.label_indices}',
             f'Label column name(s): {self.label_columns}'])
     
+
+        
+    
+    
+    
     def make_dataset(self, data, shuffle):
         data = np.array(data, dtype=np.float32)
         ds = tf.keras.preprocessing.timeseries_dataset_from_array(
             data=data,
             targets=None,
             sequence_length=self.total_window_size,
-            sequence_stride=1,
+            sequence_stride=self.input_width,
             shuffle=shuffle,
             batch_size=64,) #default is 32
 
@@ -159,7 +232,7 @@ class WindowGenerator():
         return inputs, labels
     
 
-def compile_and_fit(model, window, patience=3, MAX_EPOCHS = 20, learning_rate = 0.001):
+def compile_and_fit(model, window, patience=3, MAX_EPOCHS = 100, learning_rate = 0.001):
 
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                     patience=patience,
