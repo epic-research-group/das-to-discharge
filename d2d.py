@@ -181,6 +181,8 @@ class WindowGenerator():
         self.train = train_dataset_normed
         self.val = val_dataset_normed
         self.test = test_dataset_normed
+        
+        
 
     def __repr__(self):
         return '\n'.join([
@@ -203,7 +205,8 @@ class WindowGenerator():
             sequence_length=self.total_window_size,
             sequence_stride=self.input_width,
             shuffle=shuffle,
-            batch_size=64,) #default is 32
+            seed = 1,
+            batch_size=64) #default is 32
 
         ds = ds.map(self.split_window)
 
@@ -436,20 +439,24 @@ def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
     input_columns = list(np.arange(0,2308,1))
 
     linear = tf.keras.Sequential([
+        tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(1)
     ])
 
     lstm_model = tf.keras.models.Sequential([
         # Shape [batch, time, features] => [batch, time, lstm_units]
-        tf.keras.layers.LSTM(32, return_sequences=True),
+        tf.keras.layers.LSTM(64, return_sequences=False),
         # Shape => [batch, time, features]
         tf.keras.layers.Dense(units=1)
     ])
 
     dnn_model = tf.keras.models.Sequential([
+         
           layers.Dense(64, activation='relu'),
           layers.Dense(64, activation='relu'),
-          layers.Dense(1)
+          tf.keras.layers.Flatten(),
+          layers.Dense(1),
+          
     ])
     
     return linear, lstm_model, dnn_model, df_all_chan, input_columns
