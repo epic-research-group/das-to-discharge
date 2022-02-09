@@ -83,10 +83,12 @@ class WindowGenerator():
         ds_size = len(ds)
         train_size = int(train_split * ds_size)
         val_size = int(val_split * ds_size)
+        test_size = int(test_split * ds_size)
         
         train_ds = ds.take(train_size)
         val_ds = ds.skip(train_size).take(val_size)
         test_ds = ds.skip(train_size).skip(val_size)
+        
         
         # Doing the normalization
         
@@ -99,7 +101,7 @@ class WindowGenerator():
             
             sums_chan.append(element[0].sum(axis=1))
             sums_dis.append(element[1].sum(axis=0))
-         
+            
             stds_of_window.append(element[0].std(axis=1))
             stds_of_dis.append(element[1].std(axis=0))
         
@@ -161,17 +163,16 @@ class WindowGenerator():
             norm_dis = (element[1] - train_dis_mean) / std_dis_mean
             test_channels_normed.append(norm_chan)
             test_discharge_normed.append(norm_dis)        
+        
+        if np.asarray(test_discharge_normed)[-1].shape != np.asarray(test_discharge_normed)[0].shape:
 
-            
-#         print(channels_normed)
-#         print(discharge_normed)
+            test_channels_normed.pop()
+            test_discharge_normed.pop()  
         
         train_dataset_normed = tf.data.Dataset.from_tensor_slices((train_channels_normed, train_discharge_normed))
         val_dataset_normed = tf.data.Dataset.from_tensor_slices((val_channels_normed, val_discharge_normed))
         test_dataset_normed = tf.data.Dataset.from_tensor_slices((test_channels_normed, test_discharge_normed))
     
-        for element in val_dataset_normed.as_numpy_iterator():
-            print(element)
             
 #         print(std_chan_mean)
 #         print(train_chan_mean)
@@ -182,6 +183,10 @@ class WindowGenerator():
         self.val = val_dataset_normed
         self.test = test_dataset_normed
         
+        self.train_chan_mean = train_chan_mean
+        self.std_chan_mean = std_chan_mean
+        self.train_dis_mean = train_dis_mean
+        self.std_dis_mean = std_dis_mean
         
 
     def __repr__(self):
@@ -206,7 +211,7 @@ class WindowGenerator():
             sequence_stride=self.input_width,
             shuffle=shuffle,
             seed = 1,
-            batch_size=64) #default is 32
+            batch_size=16) #default is 32
 
         ds = ds.map(self.split_window)
 
@@ -235,7 +240,7 @@ class WindowGenerator():
         return inputs, labels
     
 
-def compile_and_fit(model, window, patience=3, MAX_EPOCHS = 100, learning_rate = 0.001):
+def compile_and_fit(model, window, patience=10, MAX_EPOCHS = 100, learning_rate = 0.001):
 
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                     patience=patience,
@@ -438,25 +443,33 @@ def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
 
     input_columns = list(np.arange(0,2308,1))
 
-    linear = tf.keras.Sequential([
+    linear_model = tf.keras.Sequential([
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(1)
     ])
 
     lstm_model = tf.keras.models.Sequential([
         # Shape [batch, time, features] => [batch, time, lstm_units]
-        tf.keras.layers.LSTM(64, return_sequences=False),
+        tf.keras.layers.LSTM(32, return_sequences=False),
         # Shape => [batch, time, features]
         tf.keras.layers.Dense(units=1)
     ])
 
     dnn_model = tf.keras.models.Sequential([
          
-          layers.Dense(64, activation='relu'),
-          layers.Dense(64, activation='relu'),
-          tf.keras.layers.Flatten(),
-          layers.Dense(1),
+        layers.Dense(32, activation='relu'),
+        layers.Dense(32, activation='relu'),
+        tf.keras.layers.Flatten(),
+        layers.Dense(1),
           
     ])
     
-    return linear, lstm_model, dnn_model, df_all_chan, input_columns
+#     conv_model =  tf.keras.Sequential([
+#         tf.keras.layers.Conv1D(filters=32,
+#                            kernel_size=(200,), #(window_input _width integer, )
+#                            activation='relu'),
+#         tf.keras.layers.Dense(units=32, activation='relu'),
+#         tf.keras.layers.Dense(units=1),
+# ])
+    
+    return linear_model, lstm_model, dnn_model, df_all_chan, input_columns
