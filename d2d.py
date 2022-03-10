@@ -33,7 +33,7 @@ class WindowGenerator():
 
     def __init__(self, df, input_width, label_width, shift,
                    label_columns=None, input_columns=None,
-                    shuffle=False):
+                    shuffle=False, batch_size = 16):
         
         # Store the raw data.
 #         self.train_df = train_df
@@ -73,7 +73,7 @@ class WindowGenerator():
         self.labels_slice = slice(self.label_start, None)
         self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
         
-        ds = self.make_dataset(df,shuffle=shuffle)
+        ds = self.make_dataset(df,shuffle=shuffle, batch_size=batch_size)
         
         # Split the dataset
         train_split=0.7
@@ -89,60 +89,33 @@ class WindowGenerator():
         val_ds = ds.skip(train_size).take(val_size)
         test_ds = ds.skip(train_size).skip(val_size)
         
+        #Redoing the normalization
         
-        # Doing the normalization
+        train_strain_in_one = []
+        train_dis_in_one = []
         
-        stds_of_window = []
-        sums_chan = []        
-        sums_dis = []
-        stds_of_dis = []
-        
-        for element in train_ds.as_numpy_iterator():
+        for i in train_ds.as_numpy_iterator():
+            train_strain_in_one.append(i[0])
+            train_dis_in_one.append(i[1])
             
-            sums_chan.append(element[0].sum(axis=1))
-            sums_dis.append(element[1].sum(axis=0))
-            
-            stds_of_window.append(element[0].std(axis=1))
-            stds_of_dis.append(element[1].std(axis=0))
+        train_strain_in_one = np.asarray(train_strain_in_one)
+        train_dis_in_one = np.asarray(train_dis_in_one)
         
+        train_strain_in_one = np.reshape(train_strain_in_one, (train_strain_in_one.shape[0]*train_strain_in_one.shape[1] * input_width, 2308))
+        train_dis_in_one = np.reshape(train_dis_in_one, (train_dis_in_one.shape[0]*train_dis_in_one.shape[1] * label_width, label_width, 1))
         
-        sums_of_chan_sums = []
-        sums_of_dis_sums = []
-        mean_stds_of_batches = []
-        mean_stds_of_dis = []
+        chan_mean = np.mean(train_strain_in_one, axis = 0)
+        dis_mean = np.mean(train_dis_in_one)
         
-        for element in sums_dis:
-        
-            sums_of_dis_sums.append(element.sum(axis=0))
-            
-        for element in stds_of_dis:
-            
-            mean_stds_of_dis.append(element.mean(axis=0))
-        
-        for element in stds_of_window:
-            
-            mean_stds_of_batches.append(element.mean(axis=0))
-            
-        for element in sums_chan:
-            
-            sums_of_chan_sums.append(element.sum(axis=0))
-
-        
-        total_chan_sum = np.asarray(sums_of_chan_sums).sum(axis=0)
-        total_dis_sum = np.asarray(sums_of_dis_sums).sum(axis=0)
-        
-        std_chan_mean = np.asarray(mean_stds_of_batches).mean(axis=0)
-        std_dis_mean = np.asarray(mean_stds_of_dis).mean(axis=0)
-        train_chan_mean = total_chan_sum / (self.total_window_size * np.asarray(sums_chan).shape[1] * np.asarray(sums_of_chan_sums).shape[0])
-        train_dis_mean = total_dis_sum / (self.total_window_size*np.asarray(sums_dis).shape[1] * np.asarray(sums_of_dis_sums).shape[0])
-        
-        
+        chan_std = np.std(train_strain_in_one, axis = 0)
+        dis_std = np.std(train_dis_in_one)
+                 
         train_channels_normed = []
         train_discharge_normed = []
         
         for element in train_ds.as_numpy_iterator():
-            norm_chan = (element[0] - train_chan_mean) / std_chan_mean
-            norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+            norm_chan = (element[0] - chan_mean) / chan_std
+            norm_dis = (element[1] - dis_mean) / dis_std
             train_channels_normed.append(norm_chan)
             train_discharge_normed.append(norm_dis)
         
@@ -150,8 +123,8 @@ class WindowGenerator():
         val_discharge_normed = []        
         
         for element in val_ds.as_numpy_iterator():
-            norm_chan = (element[0] - train_chan_mean) / std_chan_mean
-            norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+            norm_chan = (element[0] - chan_mean) / chan_std
+            norm_dis = (element[1] - dis_mean) / dis_std
             val_channels_normed.append(norm_chan)
             val_discharge_normed.append(norm_dis)        
 
@@ -159,11 +132,93 @@ class WindowGenerator():
         test_discharge_normed = []        
         
         for element in test_ds.as_numpy_iterator():
-            norm_chan = (element[0] - train_chan_mean) / std_chan_mean
-            norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+            norm_chan = (element[0] - chan_mean) / chan_std
+            norm_dis = (element[1] - dis_mean) / dis_std
             test_channels_normed.append(norm_chan)
-            test_discharge_normed.append(norm_dis)        
+            test_discharge_normed.append(norm_dis)           
+            
+            
         
+            
+        # Doing the normalization
+
+        
+#         stds_of_window = []
+#         sums_chan = []        
+#         sums_dis = []
+#         stds_of_dis = []
+        
+#         for element in train_ds.as_numpy_iterator():
+            
+#             sums_chan.append(element[0].sum(axis=1))
+#             sums_dis.append(element[1].sum(axis=0))
+            
+#             stds_of_window.append(element[0].std(axis=1))
+#             stds_of_dis.append(element[1].std(axis=0))
+        
+        
+#         sums_of_chan_sums = []
+#         sums_of_dis_sums = []
+#         mean_stds_of_batches = []
+#         mean_stds_of_dis = []
+        
+#         for element in sums_dis:
+        
+#             sums_of_dis_sums.append(element.sum(axis=0))
+            
+#         for element in stds_of_dis:
+            
+#             mean_stds_of_dis.append(element.mean(axis=0))
+        
+#         for element in stds_of_window:
+            
+#             mean_stds_of_batches.append(element.mean(axis=0))
+            
+#         for element in sums_chan:
+            
+#             sums_of_chan_sums.append(element.sum(axis=0))
+
+        
+#         total_chan_sum = np.asarray(sums_of_chan_sums).sum(axis=0)
+#         total_dis_sum = np.asarray(sums_of_dis_sums).sum(axis=0)
+        
+#         std_chan_mean = np.asarray(mean_stds_of_batches).mean(axis=0)
+#         std_dis_mean = np.asarray(mean_stds_of_dis).mean(axis=0)
+#         train_chan_mean = total_chan_sum / (self.total_window_size * np.asarray(sums_chan).shape[1] * np.asarray(sums_of_chan_sums).shape[0])
+#         train_dis_mean = total_dis_sum / (self.total_window_size*np.asarray(sums_dis).shape[1] * np.asarray(sums_of_dis_sums).shape[0])
+        
+#         print(train_chan_mean)
+        
+#         train_channels_normed = []
+#         train_discharge_normed = []
+        
+#         for element in train_ds.as_numpy_iterator():
+#             print(element[0].shape)
+#             print(element[1].shape)
+#             norm_chan = (element[0] - train_chan_mean) / std_chan_mean
+#             norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+#             train_channels_normed.append(norm_chan)
+#             train_discharge_normed.append(norm_dis)
+        
+#         val_channels_normed = []
+#         val_discharge_normed = []        
+        
+#         for element in val_ds.as_numpy_iterator():
+#             norm_chan = (element[0] - train_chan_mean) / std_chan_mean
+#             norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+#             val_channels_normed.append(norm_chan)
+#             val_discharge_normed.append(norm_dis)        
+
+#         test_channels_normed = []
+#         test_discharge_normed = []        
+        
+#         for element in test_ds.as_numpy_iterator():
+#             norm_chan = (element[0] - train_chan_mean) / std_chan_mean
+#             norm_dis = (element[1] - train_dis_mean) / std_dis_mean
+#             test_channels_normed.append(norm_chan)
+#             test_discharge_normed.append(norm_dis)        
+        
+        #Check if the last array is oddly shaped and will not fit into the model
         if np.asarray(test_discharge_normed)[-1].shape != np.asarray(test_discharge_normed)[0].shape:
 
             test_channels_normed.pop()
@@ -178,15 +233,17 @@ class WindowGenerator():
 #         print(train_chan_mean)
 #         print(train_dis_mean)
 #         print(std_dis_mean)
-        
+        self.train_strain_in_one = train_strain_in_one
+        self.train_channels_normed = train_channels_normed
+    
         self.train = train_dataset_normed
         self.val = val_dataset_normed
         self.test = test_dataset_normed
         
-        self.train_chan_mean = train_chan_mean
-        self.std_chan_mean = std_chan_mean
-        self.train_dis_mean = train_dis_mean
-        self.std_dis_mean = std_dis_mean
+        self.chan_mean = chan_mean
+        self.chan_std = chan_std
+        self.dis_mean = dis_mean
+        self.dis_std = dis_std
         
 
     def __repr__(self):
@@ -202,7 +259,7 @@ class WindowGenerator():
     
     
     
-    def make_dataset(self, data, shuffle):
+    def make_dataset(self, data, shuffle, batch_size):
         data = np.array(data, dtype=np.float32)
         ds = tf.keras.preprocessing.timeseries_dataset_from_array(
             data=data,
@@ -211,7 +268,7 @@ class WindowGenerator():
             sequence_stride=self.input_width,
             shuffle=shuffle,
             seed = 1,
-            batch_size=16) #default is 32
+            batch_size = batch_size) #default is 32
 
         ds = ds.map(self.split_window)
 
@@ -255,6 +312,10 @@ def compile_and_fit(model, window, patience=10, MAX_EPOCHS = 100, learning_rate 
                       callbacks=[early_stopping])
 
     return history    
+
+
+"""
+NOT IN USE
 
 def k_fold_leave_out(n,names,models,data,input_columns,early_stop=np.nan,window_input_width = 200, learning_rate = 0.001):    
     '''
@@ -337,6 +398,10 @@ def k_fold_leave_out(n,names,models,data,input_columns,early_stop=np.nan,window_
         print('Done with fold: ' + str(k)+', chunk size: '+ str(n))
 
     return val_performance, performance, history, history_dict, running_mean
+"""
+
+"""
+NOT IN USE
 
 def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_width = 200, learning_rate = 0.001):    
     '''
@@ -425,7 +490,7 @@ def k_fold(n,names,models,data,input_columns,early_stop=np.nan,window_input_widt
 #                       'std_test':test_std}
 
     return val_performance, performance, history, history_dict
-
+"""
 
 
 def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
