@@ -233,8 +233,17 @@ class WindowGenerator():
 #         print(train_chan_mean)
 #         print(train_dis_mean)
 #         print(std_dis_mean)
+        
+    
+        self.train_ds = train_ds
+        self.val_ds = val_ds
+        self.test_ds = test_ds
+    
+        self.ds = ds
+        self.training_non_normed = train_ds
         self.train_strain_in_one = train_strain_in_one
         self.train_channels_normed = train_channels_normed
+        self.train_dis_in_one = train_dis_in_one
     
         self.train = train_dataset_normed
         self.val = val_dataset_normed
@@ -297,7 +306,7 @@ class WindowGenerator():
         return inputs, labels
     
 
-def compile_and_fit(model, window, patience=10, MAX_EPOCHS = 100, learning_rate = 0.001):
+def compile_and_fit(model, window, patience=10, MAX_EPOCHS = 1000, learning_rate = 0.001):
 
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                     patience=patience,
@@ -515,7 +524,7 @@ def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
 
     lstm_model = tf.keras.models.Sequential([
         # Shape [batch, time, features] => [batch, time, lstm_units]
-        tf.keras.layers.LSTM(32, return_sequences=False),
+        tf.keras.layers.LSTM(32, return_sequences=True),
         # Shape => [batch, time, features]
         tf.keras.layers.Dense(units=1)
     ])
