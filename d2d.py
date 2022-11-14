@@ -5,6 +5,7 @@ import pandas as pd
 from tensorflow.keras import layers
 from tensorflow.math import reduce_prod
 import matplotlib
+import matplotlib.dates
 
 class WindowGenerator():
     
@@ -77,8 +78,6 @@ class WindowGenerator():
         
         ds = self.make_dataset(df,shuffle=shuffle, batch_size=batch_size)
         
-#         print(ds_DAS)
-#         print(ds_tp)
         
         # Split the dataset
         train_split=0.7
@@ -105,12 +104,13 @@ class WindowGenerator():
             train_dis_in_one.append(i[1])
 
         
-        train_strain_in_one = np.asarray(train_strain_in_one)
+        train_strain_in_one = np.asarray(train_strain_in_one, dtype=np.float64)
         train_dis_in_one = np.asarray(train_dis_in_one)
         
         #print(train_dis_in_one[0])
+        print(len(input_columns))
         
-        train_strain_in_one = np.reshape(train_strain_in_one, (train_strain_in_one.shape[0]*train_strain_in_one.shape[1] * input_width, 2308))
+        train_strain_in_one = np.reshape(train_strain_in_one, (train_strain_in_one.shape[0]*train_strain_in_one.shape[1] * input_width, len(input_columns)))
         train_dis_in_one = np.reshape(train_dis_in_one, (train_dis_in_one.shape[0]*train_dis_in_one.shape[1] * label_width, label_width, 1))
         
         chan_mean = np.mean(train_strain_in_one, axis = 0)
@@ -200,7 +200,7 @@ class WindowGenerator():
     
     
     def make_dataset(self, data, shuffle, batch_size):
-        data = np.array(data, dtype=np.float32)
+        data = np.array(data, dtype=np.float64)
         ds = tf.keras.preprocessing.timeseries_dataset_from_array(
             data=data,
             targets=None,
@@ -433,7 +433,7 @@ def compile_and_fit(model, window, patience=10, MAX_EPOCHS = 1000, learning_rate
 
 
 
-def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
+def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5", input_columns = list(np.arange(0,2308,1)), dropout = 0):
     
     
     #Read in the DAS data
@@ -451,10 +451,9 @@ def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
     #Make a Pandas dataframe of the data
     df_all_chan = pd.DataFrame(das_data_all)
     df_all_chan['Discharge'] = discharge
+    #df_all_chan['Times'] = times_of_discharge
     
     column_indices = {name: i for i, name in enumerate(df_all_chan.columns)}
-
-    input_columns = list(np.arange(0,2308,1))
     
     linear_model = tf.keras.Sequential([
         tf.keras.layers.Flatten(),
@@ -463,8 +462,8 @@ def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
 
     lstm_model = tf.keras.Sequential([
         # Shape [batch, time, features] => [batch, time, lstm_units]
-        tf.keras.layers.LSTM(32, return_sequences=True),
-        #tf.keras.layers.LSTM(32, return_sequences=True),
+        tf.keras.layers.LSTM(32, return_sequences=False, dropout = dropout),
+        #tf.keras.layers.LSTM(32, return_sequences=True, dropout = dropout),
         #tf.keras.layers.LSTM(32, return_sequences=False),
         # Shape => [batch, time, features]
         tf.keras.layers.Dense(1)
@@ -489,4 +488,4 @@ def import_data(filename = "/data/fast0/datasets/Rhone_data_continuous.h5"):
 #         tf.keras.layers.Dense(units=1),
 # ])
     
-    return linear_model, lstm_model, dnn_model, df_all_chan, input_columns, das_data_all, f
+    return linear_model, lstm_model, dnn_model, df_all_chan, das_data_all, f
